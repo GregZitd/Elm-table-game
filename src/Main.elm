@@ -5,6 +5,7 @@ import Html exposing (Html, Attribute, input, button, div, text, table, td, tr)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onInput, onClick)
 import Random
+import Tuple exposing (first)
 
 -- MAIN
 
@@ -21,28 +22,30 @@ type alias Model =
     { table : Table
     , settings : Settings
     , currentSelection : Index
+    , numberOfSteps : Int
     }
 
 type alias Settings =
     --These are the user input for generating a custom size table, thus they can be different from the actual size of the current table.
     { setWidth : Int
     , setHeight : Int
+    , seed : Int
+    , seedInput : String
     }
-
     
 init : () -> (Model, Cmd Msg)
 init _ =
-    (Model emptyTable (Settings 10 10 ) (Index 1 1 )
-    ,Random.generate UpdateTable (genTable 10 10 )
+    (Model emptyTable (Settings 10 10 0 "") (Index 1 1 ) 0
+    ,Random.generate GenerateSeedAndTable randInt
     )
    
-
 
 -- UPDATE
 
 type Msg
-    = UpdateTable Table
-    | GenerateTable Int Int
+    = GenerateRandomSeed
+    | GenerateSeedAndTable Int
+    | GenerateTableFromSeed
     | UpdateSettings SettingsChanges
     | NewPosition Index
     | ChangeColor Color
@@ -52,17 +55,29 @@ type SettingsChanges =
     | DecrementWidth
     | IncrementHeight
     | DecrementHeight
+    | UpdateSeed String
 
 update : Msg -> Model -> (Model,Cmd Msg)
 update msg model =
     case msg of
-        GenerateTable tWidth tHeight ->
-            ( {model | currentSelection = (Index 1 1)}
-            , Random.generate UpdateTable (genTable tWidth tHeight)
-            )
+        GenerateRandomSeed ->
+            (model , Random.generate GenerateSeedAndTable randInt)
 
-        UpdateTable newTable ->
-            ({ model | table = newTable }, Cmd.none)
+        GenerateTableFromSeed ->
+            case String.toInt model.settings.seedInput of
+                Nothing -> (model, Cmd.none)
+                Just seedNum ->
+                    let settings = model.settings
+                        newSettings = {settings | seed = seedNum}
+                    in ( updateTable {model | settings = newSettings}, Cmd.none)
+            
+
+        GenerateSeedAndTable newInt ->
+            let settings = model.settings
+                newSettings = {settings | seed = newInt }
+            in ( updateTable {model | settings = newSettings}
+               , Cmd.none)
+                
 
         UpdateSettings changes ->            
             updateSettings changes model
@@ -72,30 +87,55 @@ update msg model =
 
         ChangeColor color ->
             let newTable = recolorRegion color  model.table model.currentSelection
+                currentNumberOfSteps = model.numberOfSteps
             in case newTable of
                    Nothing -> (model , Cmd.none)
                    Just something -> 
-                       ( {model | table = something}
+                       ( {model | table = something
+                                , numberOfSteps = currentNumberOfSteps + 1
+                         }
                        , Cmd.none)
+
+--This function updates the table to match the current settings
+updateTable : Model -> Model
+updateTable model  =
+    let settings = model.settings
+        newTable =
+            first ( Random.step (genTable settings.setWidth settings.setHeight)
+                        (Random.initialSeed settings.seed)
+                  ) --This maybe.withdefault should never get a Nothing value, because we patternmatch on the settings.seed value before calling updateTable.
+    in { model | currentSelection = (Index 1 1)
+               , table = newTable
+               , numberOfSteps = 0
+       }
+
 
 updateSettings : SettingsChanges -> Model -> (Model,Cmd Msg)
 updateSettings changes model =
     let width = model.settings.setWidth
         height = model.settings.setHeight
-             in case changes of
+        settings = model.settings 
+    in case changes of
 
-                    IncrementWidth ->
-                        ({model | settings = (Settings (width + 1) height)}, Cmd.none)
+           IncrementWidth ->
+               let newSettings = {settings | setWidth = width + 1}
+               in ({model | settings = newSettings}, Cmd.none)
 
-                    DecrementWidth ->
-                        ({model | settings = (Settings (width - 1) height)}, Cmd.none)
+           DecrementWidth ->
+               let newSettings = {settings | setWidth = width - 1}
+               in ({model | settings = newSettings}, Cmd.none)
 
-                    IncrementHeight ->
-                        ({model | settings = (Settings width (height + 1 ))}, Cmd.none)
+           IncrementHeight ->
+               let newSettings = {settings | setHeight = height + 1}
+               in ({model | settings = newSettings}, Cmd.none)
 
-                    DecrementHeight ->
-                        ({model | settings = (Settings width (height - 1 ))}, Cmd.none)
+           DecrementHeight ->
+               let newSettings = {settings | setHeight = height - 1}
+               in ({model | settings = newSettings}, Cmd.none)
 
+           UpdateSeed inpText ->
+               let newSettings = {settings | seedInput = inpText}
+               in ({model | settings = newSettings}, Cmd.none)
 
 --SUBSCRIPTIONS
 
@@ -110,13 +150,8 @@ view model =
         [ viewCurrentPosition model.currentSelection
         , viewChangeColorBar
         , viewTable model.table
-        , viewWidthCounter model.settings.setWidth
-        , viewHeightCounter model.settings.setHeight
-        , button [ onClick
-                      (GenerateTable model.settings.setWidth
-                                     model.settings.setHeight)
-                 ]
-                 [ text "Generate puzzle" ]
+        , text ("Current number of steps: " ++ (String.fromInt model.numberOfSteps))
+        , viewSettings model.settings
         ]
 
 viewCell : Cell -> Html Msg
@@ -152,6 +187,15 @@ viewSettings settings =
     div []
         [ viewWidthCounter settings.setWidth
         , viewHeightCounter settings.setHeight
+        , div []
+            [ button [ onClick GenerateRandomSeed ] [text "Generate random puzzle"]
+            , text ("Current seed is: " ++ (String.fromInt settings.seed))
+            ]
+        , input [onInput (UpdateSettings << UpdateSeed) ] []
+        , button [ onClick
+                      (GenerateTableFromSeed)
+                 ]
+                 [ text "Generate puzzle from seed" ]
         ]
 
 viewWidthCounter : Int -> Html Msg
@@ -222,7 +266,8 @@ type alias Cell =
     }
 
 --Random generation
-
+randInt : Random.Generator Int
+randInt = Random.int 0 Random.maxInt
 
 genColor : Random.Generator Color
 genColor =
@@ -345,13 +390,3 @@ recolorRegion inpColor inpTable inpIndex =
         |> Maybe.andThen (checkNext Right)
         |> Maybe.andThen (checkNext Down)
         |> Maybe.andThen (checkNext Left)
-
-{-
-           (\tableUp -> 
-                case startingColor == (Maybe.map .color above) of
-                    True ->
-                        (Maybe.map .index above)
-                            |> Maybe.andThen (recolorRegion inpColor tableUp)
-                    False -> Just tableUp
-           )
--}
