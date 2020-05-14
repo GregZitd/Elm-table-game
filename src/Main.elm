@@ -6,6 +6,12 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onInput, onClick)
 import Random
 import Tuple exposing (first)
+import Element as El exposing (..)
+import Element.Background as Background
+import Element.Font as Font
+import Element.Input as Input
+import Element.Border as Border
+import Element.Events as Events
 
 -- MAIN
 
@@ -31,11 +37,12 @@ type alias Settings =
     , setHeight : Int
     , seed : Int
     , seedInput : String
+    , isOpen : Bool
     }
     
 init : () -> (Model, Cmd Msg)
 init _ =
-    (Model emptyTable (Settings 10 10 0 "") (Index 1 1 ) 0
+    (Model emptyTable (Settings 10 10 0 "" False) (Index 1 1 ) 0
     ,Random.generate GenerateSeedAndTable randInt
     )
    
@@ -56,6 +63,8 @@ type SettingsChanges =
     | IncrementHeight
     | DecrementHeight
     | UpdateSeed String
+    | OpenSettings
+    | CloseSettings
 
 update : Msg -> Model -> (Model,Cmd Msg)
 update msg model =
@@ -95,6 +104,7 @@ update msg model =
                                 , numberOfSteps = currentNumberOfSteps + 1
                          }
                        , Cmd.none)
+     
 
 --This function updates the table to match the current settings
 updateTable : Model -> Model
@@ -137,6 +147,14 @@ updateSettings changes model =
                let newSettings = {settings | seedInput = inpText}
                in ({model | settings = newSettings}, Cmd.none)
 
+           OpenSettings ->
+               let newSettings = {settings | isOpen = True}
+               in ({model | settings = newSettings}, Cmd.none)
+
+           CloseSettings ->
+               let newSettings = {settings | isOpen = False}
+               in ({model | settings = newSettings}, Cmd.none)
+
 --SUBSCRIPTIONS
 
 subscriptions : Model -> Sub Msg
@@ -146,98 +164,283 @@ subscriptions model = Sub.none
 
 view : Model -> Html Msg
 view model =
-    div []
-        [ viewCurrentPosition model.currentSelection
-        , viewChangeColorBar
-        , viewTable model.table
-        , text ("Current number of steps: " ++ (String.fromInt model.numberOfSteps))
-        , viewSettings model.settings
-        ]
+    El.layout [ Background.color <| El.rgb255 0 0 0] <|
+        column [El.height fill, El.width fill]
+            [ viewTopBar model.settings
+            , viewChangeColorBar model.numberOfSteps
+            , viewTable model.table
+            , viewGeneratePuzzleButton
+            ]
 
-viewCell : Cell -> Html Msg
-viewCell cell =
-    td [] [ button [ style "background-color" (colorToString cell.color)
-                   , style "height" "30px"
-                   , style "width" "30px"
-                   , onClick (NewPosition cell.index)
+viewTopBar : Settings -> Element Msg
+viewTopBar settings =
+    El.row [ El.height <| El.px 50
+           , El.width fill
+           , Background.color <| El.rgb255 92 99 118
+           , Font.color <| (El.rgb255 255 255 255)
+           ]
+           [ viewSettings settings 
+           ]
+
+viewSettings : Settings -> Element Msg
+viewSettings settings =
+    let menuWidth = El.px 200
+        menu =
+            El.column
+                [ El.width fill
+                
+                ]
+                [ viewWidthCounter settings.setWidth
+                , viewHeightCounter settings.setHeight
+                , viewGenerateTableFromSeedButton
+                , viewSeedInputField
+                ]
+    in case settings.isOpen of
+           False -> 
+               El.el
+                   [ Events.onMouseEnter (UpdateSettings OpenSettings)
+                   , El.height fill
+                   , El.width menuWidth
                    ]
-                   []
-          ]
+                   (El.el [El.centerY, El.centerX] (El.text "Settings"))
+           True ->
+               El.el
+                   [ Events.onMouseLeave (UpdateSettings CloseSettings)
+                   , El.height fill
+                   , El.width menuWidth
+                   , El.below menu
+                   
+                   ]
+                   (El.el [El.centerY, El.centerX] (El.text "Settings"))
+
+viewGenerateTableFromSeedButton : El.Element Msg
+viewGenerateTableFromSeedButton =
+    El.el
+        [ El.height (El.px 35)
+        , El.width fill
+        , Background.color <| El.rgb255 92 99 118
+        ] <|
+        Input.button
+            [ Background.color <| El.rgb255 255 128 0
+            , centerX
+            , centerY
+            , El.height (El.px 25)
+            , El.width (El.px 120)
+            , Font.color <| El.rgb255 0 0 0
+            , Font.center
+            , Border.rounded 10
+            , noFocusShadow
+            ]
+            { onPress = Just GenerateTableFromSeed
+            , label = El.text "Generate"
+            }
+
+viewSeedInputField : El.Element Msg
+viewSeedInputField =
+    El.el
+        [ El.height (El.px 35)
+        , El.width fill
+        , Background.color <| El.rgb255 92 99 118
+        , Border.roundEach
+                      { topLeft = 0
+                      , topRight = 0
+                      , bottomLeft = 30
+                      , bottomRight = 30
+                      }
+        ] <|
+        Input.text
+            [ El.height (El.px 30)
+            , El.width (El.px 120)
+            , El.padding 5
+            , centerX
+            , centerY
+            , Font.color <| El.rgb255 0 0 0
+            , noFocusShadow
+            
+            ]
+            { onChange = (UpdateSettings << UpdateSeed)
+            , text = ""
+            , placeholder = Nothing
+            , label = Input.labelHidden ""
+            }
+
+
+counterButton : String -> Msg -> El.Element Msg
+counterButton buttonText msg =
+    Input.button
+        [ El.height (El.px 25)
+        , El.width (El.px 25)
+        , Background.color <| El.rgb255 255 128 0
+        , Border.rounded 10
+        , Font.center
+        , Font.color <| El.rgb255 0 0 0
+        , noFocusShadow
+        ]
+        { onPress = Just  (msg)
+        , label = El.text buttonText
+        }
+        
+viewWidthCounter : Int -> El.Element Msg
+viewWidthCounter val = 
+    El.el
+        [ El.height (El.px 35)
+        , El.width fill
+        , Background.color <| El.rgb255 92 99 118
+        ]
+        ( El.row [El.centerX]
+              [ El.text "Width: "
+              , counterButton "-" (UpdateSettings DecrementWidth)
+              , El.text (String.fromInt val)
+              , counterButton "+" (UpdateSettings IncrementWidth)
+              ]
+        )
+
+viewHeightCounter : Int -> El.Element Msg
+viewHeightCounter val =
+    El.el
+        [ El.centerX
+        , El.height (El.px 35)
+        , El.width fill
+        , Background.color <| El.rgb255 92 99 118
+        ]
+        ( El.row [El.centerX]
+              [ El.text "Height: "
+              , counterButton "-" (UpdateSettings DecrementHeight)
+              , El.text (String.fromInt val)
+              , counterButton "+" (UpdateSettings IncrementHeight)
+              ]
+        )
+
+viewCell : Cell -> Element Msg
+viewCell cell =
+    El.el []( Input.button [ Background.color <| colorToRGB cell.color
+                            , El.height <| El.px 35
+                            , El.width <| El.px 35
+                           , El.focused [Border.shadow {offset = (0,0)
+                                                       , size = 3
+                                                       , blur = 0
+                                                       , color = El.rgb255  255 255 255}]
+                           ]
+                           { onPress = Just <| NewPosition cell.index
+                           , label = El.text ""}
+          )
+
+colorToRGB : Color -> El.Color
+colorToRGB color =
+    case color of
+        Red -> El.rgb255 255 0 0
+        Blue -> El.rgb255 0 0 255
+        Green -> El.rgb255 0 255 0
+        Yellow -> El.rgb255 255 255 0
+        Purple -> El.rgb255 139 0 139
 
 colorToString : Color -> String
 colorToString color =
     case color of
-        Red -> "red"
-        Blue -> "blue"
-        Green -> "green"
-        Yellow -> "yellow"
-        Purple -> "purple"
+        Red -> "Red"
+        Blue -> "Blue"
+        Green -> "Green"
+        Yellow -> "Yellow"
+        Purple -> "Purple"
 
-viewRow : List Cell -> Html Msg
+viewRow : List Cell -> Element Msg
 viewRow cells =
-    tr [] (List.map viewCell cells)
+    El.row [spacing 3] (List.map viewCell cells)
 
-viewTable : Table -> Html Msg
+viewTable : Table -> Element Msg
 viewTable rows =
-    table [] (List.map viewRow rows)
+    El.column [spacing 3, padding 30, centerX] (List.map viewRow rows)
 
-
-viewSettings : Settings -> Html Msg
-viewSettings settings =
-    div []
-        [ viewWidthCounter settings.setWidth
-        , viewHeightCounter settings.setHeight
-        , div []
-            [ button [ onClick GenerateRandomSeed ] [text "Generate random puzzle"]
-            , text ("Current seed is: " ++ (String.fromInt settings.seed))
-            ]
-        , input [onInput (UpdateSettings << UpdateSeed) ] []
-        , button [ onClick
-                      (GenerateTableFromSeed)
-                 ]
-                 [ text "Generate puzzle from seed" ]
+viewGeneratePuzzleButton : El.Element Msg
+viewGeneratePuzzleButton =
+    Input.button
+        [ centerX
+        , Background.color <| El.rgb255 255 128 0
+        , padding 20
+        --, Font.color <| El.rgb255 255 255 255
+        , Font.letterSpacing 2
+        , Border.rounded 20
+        , El.mouseOver [Border.glow (El.rgb255 255 128 0) 5]
+        , noFocusShadow
         ]
-
-viewWidthCounter : Int -> Html Msg
-viewWidthCounter val =
-    div []
-        [ button [onClick (UpdateSettings DecrementWidth) ] [text "-"]
-        , text (String.fromInt val)
-        , button [onClick (UpdateSettings IncrementWidth) ] [text "+"]
-        ]
-
-viewHeightCounter : Int -> Html Msg
-viewHeightCounter val =
-    div []
-        [ button [onClick (UpdateSettings DecrementHeight) ] [text "-"]
-        , text (String.fromInt val)
-        , button [onClick (UpdateSettings IncrementHeight) ] [text "+"]
-        ]
+        { onPress = Just GenerateRandomSeed
+        , label = El.text "Generate puzzle"
+        }
+                    
+noFocusShadow : El.Attribute msg
+noFocusShadow =
+     El.focused [Border.shadow {offset = (0,0)
+                                    , size = 0
+                                    , blur = 0
+                                    , color = El.rgb255 139 0 139}]
 
 viewCurrentPosition : Index -> Html Msg
 viewCurrentPosition ind =
     div []
-        [ text ("The currently selected field is: "
+        [ Html.text ("The currently selected field is: "
                ++ (String.fromInt ind.row)
                ++ ", "
                ++ (String.fromInt ind.col))
         ]
 
-viewChangeColorButton : Color -> Html Msg
+viewChangeColorButton : Color -> El.Element Msg
 viewChangeColorButton color =
-    button [ onClick (ChangeColor color)]
-           [ text (colorToString color)]
-
-viewChangeColorBar : Html Msg
-viewChangeColorBar =
-    div []
-        [ viewChangeColorButton Red
-        , viewChangeColorButton Blue
-        , viewChangeColorButton Green
-        , viewChangeColorButton Yellow
-        , viewChangeColorButton Purple
+    Input.button
+        [ centerX
+        , Background.color <| colorToRGB color
+        , El.width <| El.px 70
+        , El.height <| El.px 50
+        , Border.rounded 20
+        , noFocusShadow
+        , Border.color <| El.rgb255 92 99 118
+        , Border.widthEach { bottom = 3
+                           , left = 0
+                           , right = 3
+                           , top = 0
+                           }
+        , El.mouseOver [Border.shadow { offset = (2,2)
+                                     , size = 2
+                                     , blur = 8
+                                     , color = El.rgb255 255 255 255}]
         ]
+          { onPress  = Just (ChangeColor color)
+          , label = El.text ""
+          }
 
+viewChangeColorBar : Int -> El.Element Msg
+viewChangeColorBar steps =
+    El.column
+        [ centerX
+        , Font.color <| El.rgb255 255 255 255
+        , spacing 30
+        , paddingEach {edges | top = 60}
+        ]
+        [ El.text "Push one of these buttons to recolor the area containing the currently selected square!"
+        , El.row
+              [ spacing 40
+              , centerX
+              ]
+              [ viewChangeColorButton Red
+              , viewChangeColorButton Blue
+              , viewChangeColorButton Green
+              , viewChangeColorButton Yellow
+              , viewChangeColorButton Purple
+              ]
+        ,El.el
+            [ centerX
+            , paddingEach {edges | top = 30, bottom = 0}
+            ]
+             ( El.text <| "Number of steps so far : "
+                  ++ String.fromInt steps
+             )
+             ]
+
+edges = { top = 30
+        , left = 30
+        , right = 30
+        , bottom = 30
+        }
+             
 --Table data structure and helper funcitons
 
 type alias Table = List (List Cell)
