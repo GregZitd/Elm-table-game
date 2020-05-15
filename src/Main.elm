@@ -12,6 +12,8 @@ import Element.Font as Font
 import Element.Input as Input
 import Element.Border as Border
 import Element.Events as Events
+import Browser.Events
+import Json.Decode as Decode
 
 -- MAIN
 
@@ -29,6 +31,7 @@ type alias Model =
     , settings : Settings
     , currentSelection : Index
     , numberOfSteps : Int
+    , isMonochrome : Bool
     }
 
 type alias Settings =
@@ -42,7 +45,7 @@ type alias Settings =
     
 init : () -> (Model, Cmd Msg)
 init _ =
-    (Model emptyTable (Settings 10 10 0 "" False) (Index 1 1 ) 0
+    (Model emptyTable (Settings 10 10 0 "" False) (Index 1 1 ) 0 False
     ,Random.generate GenerateSeedAndTable randInt
     )
    
@@ -56,6 +59,7 @@ type Msg
     | UpdateSettings SettingsChanges
     | NewPosition Index
     | ChangeColor Color
+    | KeyPress Key
 
 type SettingsChanges =
       IncrementWidth
@@ -66,28 +70,25 @@ type SettingsChanges =
     | OpenSettings
     | CloseSettings
 
+type Key =
+      Character Char
+    | Control String
+
 update : Msg -> Model -> (Model,Cmd Msg)
 update msg model =
     case msg of
         GenerateRandomSeed ->
             (model , Random.generate GenerateSeedAndTable randInt)
 
-        GenerateTableFromSeed ->
-            case String.toInt model.settings.seedInput of
-                Nothing -> (model, Cmd.none)
-                Just seedNum ->
-                    let settings = model.settings
-                        newSettings = {settings | seed = seedNum}
-                    in ( updateTable {model | settings = newSettings}, Cmd.none)
-            
-
         GenerateSeedAndTable newInt ->
             let settings = model.settings
                 newSettings = {settings | seed = newInt }
             in ( updateTable {model | settings = newSettings}
                , Cmd.none)
-                
-
+        
+        GenerateTableFromSeed ->
+            updateGenerateTableFromSeed model
+            
         UpdateSettings changes ->            
             updateSettings changes model
                 
@@ -95,92 +96,131 @@ update msg model =
              ({model | currentSelection = newIndex}, Cmd.none)
 
         ChangeColor color ->
-            let newTable = recolorRegion color  model.table model.currentSelection
-                currentNumberOfSteps = model.numberOfSteps
-            in case newTable of
-                   Nothing -> (model , Cmd.none)
-                   Just something -> 
-                       ( {model | table = something
-                                , numberOfSteps = currentNumberOfSteps + 1
-                         }
-                       , Cmd.none)
-     
+           updateChangeColor model color
 
---This function updates the table to match the current settings
-updateTable : Model -> Model
-updateTable model  =
-    let settings = model.settings
-        newTable =
-            first ( Random.step (genTable settings.setWidth settings.setHeight)
-                        (Random.initialSeed settings.seed)
-                  ) --This maybe.withdefault should never get a Nothing value, because we patternmatch on the settings.seed value before calling updateTable.
-    in { model | currentSelection = (Index 1 1)
-               , table = newTable
-               , numberOfSteps = 0
-       }
+        KeyPress key ->
+            updateKeyPress model key
+            
+                              
 
-
-updateSettings : SettingsChanges -> Model -> (Model,Cmd Msg)
-updateSettings changes model =
-    let width = model.settings.setWidth
-        height = model.settings.setHeight
-        settings = model.settings 
-    in case changes of
-
-           IncrementWidth ->
-               let newSettings = {settings | setWidth = width + 1}
-               in ({model | settings = newSettings}, Cmd.none)
-
-           DecrementWidth ->
-               let newSettings = {settings | setWidth = width - 1}
-               in ({model | settings = newSettings}, Cmd.none)
-
-           IncrementHeight ->
-               let newSettings = {settings | setHeight = height + 1}
-               in ({model | settings = newSettings}, Cmd.none)
-
-           DecrementHeight ->
-               let newSettings = {settings | setHeight = height - 1}
-               in ({model | settings = newSettings}, Cmd.none)
-
-           UpdateSeed inpText ->
-               let newSettings = {settings | seedInput = inpText}
-               in ({model | settings = newSettings}, Cmd.none)
-
-           OpenSettings ->
-               let newSettings = {settings | isOpen = True}
-               in ({model | settings = newSettings}, Cmd.none)
-
-           CloseSettings ->
-               let newSettings = {settings | isOpen = False}
-               in ({model | settings = newSettings}, Cmd.none)
 
 --SUBSCRIPTIONS
 
 subscriptions : Model -> Sub Msg
-subscriptions model = Sub.none  
+subscriptions model = Browser.Events.onKeyPress keyDecoder
+
+                      
+keyDecoder : Decode.Decoder Msg
+keyDecoder =
+    Decode.map tokey (Decode.field "key" Decode.string)
+
+tokey : String -> Msg
+tokey keyValue =
+    case String.uncons keyValue of
+        Just ( char, "") ->
+            ( KeyPress << Character) char
+
+        _ ->
+            ( KeyPress << Control) keyValue
 
 -- VIEW
 
 view : Model -> Html Msg
 view model =
-    El.layout [ Background.color <| El.rgb255 0 0 0] <|
-        column [El.height fill, El.width fill]
-            [ viewTopBar model.settings
-            , viewChangeColorBar model.numberOfSteps
-            , viewTable model.table
-            , viewGeneratePuzzleButton
+    let content = 
+          column
+            [ El.width fill
+            , El.height fill
             ]
+            [ viewTopBar model.settings
+            , column
+                  [ Background.color black
+                  , El.scrollbars
+                  , El.width fill
+                  , El.height fill
+                  ]
+                  [ viewChangeColorBar model.numberOfSteps
+                  , viewTable model.table
+                  , viewGeneratePuzzleButton
+                  , viewSeedTip model
+                  ]
+            ]
+    in case model.isMonochrome of
+           False ->
+               El.layout [ El.height fill] <| content
+           True ->
+               El.layout ( [ El.height fill ] ++ (viewCongrats model) ) <| content
+                
+--------------------------------------------------
+--View helper functions
+--------------------------------------------------
 
+--color palett
+black = El.rgb255 0 0 0
+white = El.rgb255 255 255 255
+orange = El.rgb255 255 128 0
+grey = El.rgb255 92 99 118
+
+viewCongrats : Model -> List (El.Attribute Msg)
+viewCongrats model  =
+    [ El.inFront
+          (El.el
+              [ El.width <| El.px 800
+              , El.height <| El.px 100
+              , El.centerX
+              , El.centerY
+              , Background.color grey
+              , Border.rounded 40
+              , El.alpha 0.93
+              ] <| El.none)
+    , El.inFront
+        ( El.el
+            [ El.centerX
+            , El.centerY
+            ] <|
+                El.textColumn
+                     [ El.width fill
+                     , Font.center
+                     ]
+                     [ El.el [ Font.size 40 ] <| El.text
+                           "Congratulations!"
+                     , El.text "You have solved the puzzle in : "
+                     , El.text <|  String.fromInt model.numberOfSteps
+                     , El.text " steps!"
+                     ]
+        )
+    ]
+            
 viewTopBar : Settings -> Element Msg
 viewTopBar settings =
     El.row [ El.height <| El.px 50
            , El.width fill
-           , Background.color <| El.rgb255 92 99 118
-           , Font.color <| (El.rgb255 255 255 255)
+           , Background.color grey 
+           , Font.color white
            ]
            [ viewSettings settings 
            ]
+
+viewSeedTip : Model -> Element Msg
+viewSeedTip model =
+    let (rows,cols)  = tableSize model.table
+        settingsToString =
+               String.fromInt rows
+            ++ ","
+            ++ String.fromInt cols
+            ++ ","
+            ++ String.fromInt model.settings.seed
+    in El.column
+          [ Font.color white
+          , Font.center
+          , centerX
+          , spacing 20
+          , padding 30
+          ]
+          [ El.text "Tip: You can share this exact puzzle with your friends to see who can solve it in fewer steps!\nTo generate a puzzle from a given seed visit the settings menu."
+          ,El.el [centerX] <|
+              El.text <|  "Your current seed is: " ++ settingsToString
+          ]
 
 viewSettings : Settings -> Element Msg
 viewSettings settings =
@@ -193,7 +233,7 @@ viewSettings settings =
                 [ viewWidthCounter settings.setWidth
                 , viewHeightCounter settings.setHeight
                 , viewGenerateTableFromSeedButton
-                , viewSeedInputField
+                , viewSeedInputField settings
                 ]
     in case settings.isOpen of
            False -> 
@@ -215,32 +255,39 @@ viewSettings settings =
 
 viewGenerateTableFromSeedButton : El.Element Msg
 viewGenerateTableFromSeedButton =
-    El.el
-        [ El.height (El.px 35)
-        , El.width fill
-        , Background.color <| El.rgb255 92 99 118
+    El.column
+        [ --El.height (El.px 35)
+         El.width fill
+        , Background.color grey
+        , spacing 5
         ] <|
-        Input.button
-            [ Background.color <| El.rgb255 255 128 0
-            , centerX
-            , centerY
-            , El.height (El.px 25)
-            , El.width (El.px 120)
-            , Font.color <| El.rgb255 0 0 0
-            , Font.center
-            , Border.rounded 10
-            , noFocusShadow
-            ]
-            { onPress = Just GenerateTableFromSeed
-            , label = El.text "Generate"
-            }
+        [ El.el
+              [ Font.center
+              , centerX
+              ]
+              ( El.text "Generate puzzle\nfrom seed")
+        , Input.button
+              [ Background.color orange
+              , centerX
+              , centerY
+              , El.height (El.px 25)
+              , El.width (El.px 120)
+              , Font.color black
+              , Font.center
+              , Border.rounded 10
+              , noFocusShadow
+              ]
+              { onPress = Just GenerateTableFromSeed
+              , label = El.text "Generate"
+              }
+        ]
 
-viewSeedInputField : El.Element Msg
-viewSeedInputField =
+viewSeedInputField : Settings -> El.Element Msg
+viewSeedInputField settings =
     El.el
         [ El.height (El.px 35)
         , El.width fill
-        , Background.color <| El.rgb255 92 99 118
+        , Background.color grey
         , Border.roundEach
                       { topLeft = 0
                       , topRight = 0
@@ -254,12 +301,12 @@ viewSeedInputField =
             , El.padding 5
             , centerX
             , centerY
-            , Font.color <| El.rgb255 0 0 0
+            , Font.color black
             , noFocusShadow
             
             ]
             { onChange = (UpdateSettings << UpdateSeed)
-            , text = ""
+            , text = settings.seedInput
             , placeholder = Nothing
             , label = Input.labelHidden ""
             }
@@ -270,10 +317,10 @@ counterButton buttonText msg =
     Input.button
         [ El.height (El.px 25)
         , El.width (El.px 25)
-        , Background.color <| El.rgb255 255 128 0
+        , Background.color orange
         , Border.rounded 10
         , Font.center
-        , Font.color <| El.rgb255 0 0 0
+        , Font.color black
         , noFocusShadow
         ]
         { onPress = Just  (msg)
@@ -285,7 +332,7 @@ viewWidthCounter val =
     El.el
         [ El.height (El.px 35)
         , El.width fill
-        , Background.color <| El.rgb255 92 99 118
+        , Background.color grey
         ]
         ( El.row [El.centerX]
               [ El.text "Width: "
@@ -301,7 +348,7 @@ viewHeightCounter val =
         [ El.centerX
         , El.height (El.px 35)
         , El.width fill
-        , Background.color <| El.rgb255 92 99 118
+        , Background.color grey
         ]
         ( El.row [El.centerX]
               [ El.text "Height: "
@@ -319,7 +366,7 @@ viewCell cell =
                            , El.focused [Border.shadow {offset = (0,0)
                                                        , size = 3
                                                        , blur = 0
-                                                       , color = El.rgb255  255 255 255}]
+                                                       , color = white}]
                            ]
                            { onPress = Just <| NewPosition cell.index
                            , label = El.text ""}
@@ -334,15 +381,6 @@ colorToRGB color =
         Yellow -> El.rgb255 255 255 0
         Purple -> El.rgb255 139 0 139
 
-colorToString : Color -> String
-colorToString color =
-    case color of
-        Red -> "Red"
-        Blue -> "Blue"
-        Green -> "Green"
-        Yellow -> "Yellow"
-        Purple -> "Purple"
-
 viewRow : List Cell -> Element Msg
 viewRow cells =
     El.row [spacing 3] (List.map viewCell cells)
@@ -355,12 +393,11 @@ viewGeneratePuzzleButton : El.Element Msg
 viewGeneratePuzzleButton =
     Input.button
         [ centerX
-        , Background.color <| El.rgb255 255 128 0
+        , Background.color orange
         , padding 20
-        --, Font.color <| El.rgb255 255 255 255
         , Font.letterSpacing 2
         , Border.rounded 20
-        , El.mouseOver [Border.glow (El.rgb255 255 128 0) 5]
+        , El.mouseOver [Border.glow orange 5]
         , noFocusShadow
         ]
         { onPress = Just GenerateRandomSeed
@@ -383,8 +420,8 @@ viewCurrentPosition ind =
                ++ (String.fromInt ind.col))
         ]
 
-viewChangeColorButton : Color -> El.Element Msg
-viewChangeColorButton color =
+viewChangeColorButton : String -> Color -> El.Element Msg
+viewChangeColorButton label color =
     Input.button
         [ centerX
         , Background.color <| colorToRGB color
@@ -401,30 +438,34 @@ viewChangeColorButton color =
         , El.mouseOver [Border.shadow { offset = (2,2)
                                      , size = 2
                                      , blur = 8
-                                     , color = El.rgb255 255 255 255}]
+                                     , color = white}]
         ]
           { onPress  = Just (ChangeColor color)
-          , label = El.text ""
+          , label = El.text label
           }
 
 viewChangeColorBar : Int -> El.Element Msg
 viewChangeColorBar steps =
     El.column
         [ centerX
-        , Font.color <| El.rgb255 255 255 255
+        , Font.color white
         , spacing 30
         , paddingEach {edges | top = 60}
+        , Font.center
         ]
-        [ El.text "Push one of these buttons to recolor the area containing the currently selected square!"
+        [ El.text "Push one of these buttons, or press the appropriate key to recolor the area\ncontaining the currently selected square!"
+        , El.el [centerX] <|
+            El.text " The goal is to make all the squares the same color."
         , El.row
               [ spacing 40
               , centerX
+              , Font.color black
               ]
-              [ viewChangeColorButton Red
-              , viewChangeColorButton Blue
-              , viewChangeColorButton Green
-              , viewChangeColorButton Yellow
-              , viewChangeColorButton Purple
+              [ viewChangeColorButton "1" Red
+              , viewChangeColorButton "2" Blue
+              , viewChangeColorButton "3" Green
+              , viewChangeColorButton "4" Yellow
+              , viewChangeColorButton "5" Purple
               ]
         ,El.el
             [ centerX
@@ -440,8 +481,9 @@ edges = { top = 30
         , right = 30
         , bottom = 30
         }
-             
+--------------------------------------------------            
 --Table data structure and helper funcitons
+--------------------------------------------------
 
 type alias Table = List (List Cell)
     
@@ -468,7 +510,24 @@ type alias Cell =
     , index : Index
     }
 
+tableSize : Table -> (Int,Int)
+tableSize table =
+    let rows = List.length table
+        mcols = Maybe.map List.length (List.head table)
+    in case mcols of
+           Nothing -> (0,0)
+           Just n -> (rows,n)
+
+isMonochrome : Table -> Bool
+isMonochrome table = 
+    let colorTable = List.concat <| List.map (List.map .color) table
+    in case colorTable of
+           (x :: xs) -> List.all ((==) x) xs
+           [] -> False
+--------------------------------------------------
 --Random generation
+--------------------------------------------------
+
 randInt : Random.Generator Int
 randInt = Random.int 0 Random.maxInt
 
@@ -511,9 +570,9 @@ genTable numOfCols numOfRows =
                 [] -> Random.list 0 (genRow 0 0)
      in (sequence randomTable)
 
---------------------
+--------------------------------------------------
 --Recoloring parts of the table
---------------------
+--------------------------------------------------
 
 reColor : Color -> Cell -> Table -> Table
 reColor newColor inpCell table =
@@ -588,8 +647,126 @@ recolorRegion inpColor inpTable inpIndex =
                            |> Maybe.andThen (recolorRegion inpColor nextTable)
                    False -> Just nextTable
 
-    in Maybe.map3 reColor (Just inpColor) startingCell (Just inpTable)
-        |> Maybe.andThen (checkNext Up)
-        |> Maybe.andThen (checkNext Right)
-        |> Maybe.andThen (checkNext Down)
-        |> Maybe.andThen (checkNext Left)
+    in case startingColor == Just inpColor of
+           True ->
+               Just inpTable
+           False ->
+               Maybe.map3 reColor (Just inpColor) startingCell (Just inpTable)
+                   |> Maybe.andThen (checkNext Up)
+                   |> Maybe.andThen (checkNext Right)
+                   |> Maybe.andThen (checkNext Down)
+                   |> Maybe.andThen (checkNext Left)
+
+--------------------------------------------------
+--Update helper functions
+--------------------------------------------------
+
+--This function updates the table to match the current settings
+updateTable : Model -> Model
+updateTable model  =
+    let settings = model.settings
+        newTable =
+            first ( Random.step (genTable settings.setWidth settings.setHeight)
+                        (Random.initialSeed settings.seed)
+                  ) --This maybe.withdefault should never get a
+                    --Nothing value, because we patternmatch on the
+                    --settings.seed value before calling updateTable.
+        monochromeCheck = isMonochrome newTable
+    in { model | currentSelection = (Index 1 1)
+               , table = newTable
+               , numberOfSteps = 0
+               , isMonochrome = monochromeCheck
+       }
+
+
+updateSettings : SettingsChanges -> Model -> (Model,Cmd Msg)
+updateSettings changes model =
+    let width = model.settings.setWidth
+        height = model.settings.setHeight
+        settings = model.settings 
+    in case changes of
+
+           IncrementWidth ->
+               let newSettings = {settings | setWidth = width + 1}
+               in ({model | settings = newSettings}, Cmd.none)
+
+           DecrementWidth ->
+               let newSettings = {settings | setWidth = width - 1}
+               in ({model | settings = newSettings}, Cmd.none)
+
+           IncrementHeight ->
+               let newSettings = {settings | setHeight = height + 1}
+               in ({model | settings = newSettings}, Cmd.none)
+
+           DecrementHeight ->
+               let newSettings = {settings | setHeight = height - 1}
+               in ({model | settings = newSettings}, Cmd.none)
+
+           UpdateSeed inpText ->
+               let newSettings = {settings | seedInput = inpText}
+               in ({model | settings = newSettings}, Cmd.none)
+
+           OpenSettings ->
+               let newSettings = {settings | isOpen = True}
+               in ({model | settings = newSettings}, Cmd.none)
+
+           CloseSettings ->
+               let newSettings = {settings | isOpen = False}
+               in ({model | settings = newSettings}, Cmd.none)
+
+updateGenerateTableFromSeed : Model -> (Model,Cmd Msg)
+updateGenerateTableFromSeed model =
+    case List.map String.toInt <| String.split "," <| model.settings.seedInput of
+        [Just rowNum, Just colNum,Just seedNum] ->
+            let settings = model.settings
+                newSettings = {settings | seed = seedNum
+                                        , setHeight = rowNum
+                                        , setWidth = colNum
+                              }
+            in (updateTable {model | settings = newSettings}, Cmd.none)
+        _ -> (model,Cmd.none)
+                
+updateKeyPress : Model -> Key -> (Model,Cmd Msg)
+updateKeyPress model key =
+    case model.settings.isOpen of
+        True ->
+            case key of
+                Control "Enter" ->
+                    updateGenerateTableFromSeed model
+                _ -> (model,Cmd.none)
+        False -> 
+            case key of
+                Character '1' ->
+                    updateChangeColor model Red
+
+                Character '2' ->
+                    updateChangeColor model Blue
+
+                Character '3' ->
+                    updateChangeColor model Green
+
+                Character '4' ->
+                    updateChangeColor model Yellow
+
+                Character '5' ->
+                    updateChangeColor model Purple
+                        
+                _ -> (model, Cmd.none)
+
+updateChangeColor : Model -> Color -> (Model, Cmd Msg)
+updateChangeColor model color =
+     let newTableM = recolorRegion color  model.table model.currentSelection
+         currentNumberOfSteps = model.numberOfSteps
+            in case newTableM of
+                   Nothing -> (model , Cmd.none)
+                   Just newTable ->
+                       let newModel =  {model | table = newTable
+                                       , numberOfSteps =
+                                           currentNumberOfSteps + 1
+                                       }
+                       in case isMonochrome newModel.table of
+                              True -> ({newModel | isMonochrome =
+                                            True},Cmd.none)
+                              False -> ({newModel | isMonochrome =
+                                             False}
+                                       ,Cmd.none)
