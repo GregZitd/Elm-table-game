@@ -1,9 +1,9 @@
 module Main exposing (..)
 
 import Browser
-import Html exposing (Html, Attribute, input, button, div, text, table, td, tr)
-import Html.Attributes exposing (..)
-import Html.Events exposing (onInput, onClick)
+import Html exposing (Html, Attribute)
+--import Html.Attributes exposing (..)
+--import Html.Events exposing (onInput, onClick)
 import Random
 import Tuple exposing (first)
 import Element as El exposing (..)
@@ -14,6 +14,8 @@ import Element.Border as Border
 import Element.Events as Events
 import Browser.Events
 import Json.Decode as Decode
+
+import Settings
 
 -- MAIN
 
@@ -28,24 +30,17 @@ main =
 
 type alias Model =
     { table : Table
-    , settings : Settings
+    , settings : Settings.Settings
     , currentSelection : Index
     , numberOfSteps : Int
     , isMonochrome : Bool
     }
 
-type alias Settings =
-    --These are the user input for generating a custom size table, thus they can be different from the actual size of the current table.
-    { setWidth : Int
-    , setHeight : Int
-    , seed : Int
-    , seedInput : String
-    , isOpen : Bool
-    }
+
     
 init : () -> (Model, Cmd Msg)
 init _ =
-    (Model emptyTable (Settings 10 10 0 "" False) (Index 1 1 ) 0 False
+    (Model emptyTable (Settings.Settings 10 10 0 "" False) (Index 1 1 ) 0 False
     ,Random.generate GenerateSeedAndTable randInt
     )
    
@@ -55,20 +50,12 @@ init _ =
 type Msg
     = GenerateRandomSeed
     | GenerateSeedAndTable Int
-    | GenerateTableFromSeed
-    | UpdateSettings SettingsChanges
+    | UpdateSettings Settings.Changes
     | NewPosition Index
     | ChangeColor Color
     | KeyPress Key
 
-type SettingsChanges =
-      IncrementWidth
-    | DecrementWidth
-    | IncrementHeight
-    | DecrementHeight
-    | UpdateSeed String
-    | OpenSettings
-    | CloseSettings
+
 
 type Key =
       Character Char
@@ -85,13 +72,14 @@ update msg model =
                 newSettings = {settings | seed = newInt }
             in ( updateTable {model | settings = newSettings}
                , Cmd.none)
-        
-        GenerateTableFromSeed ->
-            updateGenerateTableFromSeed model
             
         UpdateSettings changes ->            
-            updateSettings changes model
-                
+            let (newSettings,shouldTableUpdate) = Settings.update changes model.settings
+            in case shouldTableUpdate of
+                   False -> ({model | settings = newSettings}, Cmd.none)
+                   True ->  ( updateTable {model | settings = newSettings}
+                            , Cmd.none)
+                   
         NewPosition newIndex ->
              ({model | currentSelection = newIndex}, Cmd.none)
 
@@ -107,7 +95,11 @@ update msg model =
 --SUBSCRIPTIONS
 
 subscriptions : Model -> Sub Msg
-subscriptions model = Browser.Events.onKeyPress keyDecoder
+subscriptions model =
+    Sub.batch
+        [ Browser.Events.onKeyPress keyDecoder
+        , Sub.map UpdateSettings Settings.subscriptions
+        ]
 
                       
 keyDecoder : Decode.Decoder Msg
@@ -191,14 +183,14 @@ viewCongrats model  =
         )
     ]
             
-viewTopBar : Settings -> Element Msg
+viewTopBar : Settings.Settings -> Element Msg
 viewTopBar settings =
     El.row [ El.height <| El.px 50
            , El.width fill
            , Background.color grey 
            , Font.color white
            ]
-           [ viewSettings settings 
+           [ El.map UpdateSettings <| Settings.view settings 
            ]
 
 viewSeedTip : Model -> Element Msg
@@ -222,141 +214,7 @@ viewSeedTip model =
               El.text <|  "Your current seed is: " ++ settingsToString
           ]
 
-viewSettings : Settings -> Element Msg
-viewSettings settings =
-    let menuWidth = El.px 200
-        menu =
-            El.column
-                [ El.width fill
-                
-                ]
-                [ viewWidthCounter settings.setWidth
-                , viewHeightCounter settings.setHeight
-                , viewGenerateTableFromSeedButton
-                , viewSeedInputField settings
-                ]
-    in case settings.isOpen of
-           False -> 
-               El.el
-                   [ Events.onMouseEnter (UpdateSettings OpenSettings)
-                   , El.height fill
-                   , El.width menuWidth
-                   ]
-                   (El.el [El.centerY, El.centerX] (El.text "Settings"))
-           True ->
-               El.el
-                   [ Events.onMouseLeave (UpdateSettings CloseSettings)
-                   , El.height fill
-                   , El.width menuWidth
-                   , El.below menu
-                   
-                   ]
-                   (El.el [El.centerY, El.centerX] (El.text "Settings"))
 
-viewGenerateTableFromSeedButton : El.Element Msg
-viewGenerateTableFromSeedButton =
-    El.column
-        [ --El.height (El.px 35)
-         El.width fill
-        , Background.color grey
-        , spacing 5
-        ] <|
-        [ El.el
-              [ Font.center
-              , centerX
-              ]
-              ( El.text "Generate puzzle\nfrom seed")
-        , Input.button
-              [ Background.color orange
-              , centerX
-              , centerY
-              , El.height (El.px 25)
-              , El.width (El.px 120)
-              , Font.color black
-              , Font.center
-              , Border.rounded 10
-              , noFocusShadow
-              ]
-              { onPress = Just GenerateTableFromSeed
-              , label = El.text "Generate"
-              }
-        ]
-
-viewSeedInputField : Settings -> El.Element Msg
-viewSeedInputField settings =
-    El.el
-        [ El.height (El.px 35)
-        , El.width fill
-        , Background.color grey
-        , Border.roundEach
-                      { topLeft = 0
-                      , topRight = 0
-                      , bottomLeft = 30
-                      , bottomRight = 30
-                      }
-        ] <|
-        Input.text
-            [ El.height (El.px 30)
-            , El.width (El.px 120)
-            , El.padding 5
-            , centerX
-            , centerY
-            , Font.color black
-            , noFocusShadow
-            
-            ]
-            { onChange = (UpdateSettings << UpdateSeed)
-            , text = settings.seedInput
-            , placeholder = Nothing
-            , label = Input.labelHidden ""
-            }
-
-
-counterButton : String -> Msg -> El.Element Msg
-counterButton buttonText msg =
-    Input.button
-        [ El.height (El.px 25)
-        , El.width (El.px 25)
-        , Background.color orange
-        , Border.rounded 10
-        , Font.center
-        , Font.color black
-        , noFocusShadow
-        ]
-        { onPress = Just  (msg)
-        , label = El.text buttonText
-        }
-        
-viewWidthCounter : Int -> El.Element Msg
-viewWidthCounter val = 
-    El.el
-        [ El.height (El.px 35)
-        , El.width fill
-        , Background.color grey
-        ]
-        ( El.row [El.centerX]
-              [ El.text "Width: "
-              , counterButton "-" (UpdateSettings DecrementWidth)
-              , El.text (String.fromInt val)
-              , counterButton "+" (UpdateSettings IncrementWidth)
-              ]
-        )
-
-viewHeightCounter : Int -> El.Element Msg
-viewHeightCounter val =
-    El.el
-        [ El.centerX
-        , El.height (El.px 35)
-        , El.width fill
-        , Background.color grey
-        ]
-        ( El.row [El.centerX]
-              [ El.text "Height: "
-              , counterButton "-" (UpdateSettings DecrementHeight)
-              , El.text (String.fromInt val)
-              , counterButton "+" (UpdateSettings IncrementHeight)
-              ]
-        )
 
 viewCell : Cell -> Element Msg
 viewCell cell =
@@ -411,14 +269,14 @@ noFocusShadow =
                                     , blur = 0
                                     , color = El.rgb255 139 0 139}]
 
-viewCurrentPosition : Index -> Html Msg
+viewCurrentPosition : Index -> El.Element Msg
 viewCurrentPosition ind =
-    div []
-        [ Html.text ("The currently selected field is: "
+    El.el []
+        ( El.text <| ("The currently selected field is: "
                ++ (String.fromInt ind.row)
                ++ ", "
                ++ (String.fromInt ind.col))
-        ]
+        )
 
 viewChangeColorButton : String -> Color -> El.Element Msg
 viewChangeColorButton label color =
@@ -678,61 +536,14 @@ updateTable model  =
                , isMonochrome = monochromeCheck
        }
 
-
-updateSettings : SettingsChanges -> Model -> (Model,Cmd Msg)
-updateSettings changes model =
-    let width = model.settings.setWidth
-        height = model.settings.setHeight
-        settings = model.settings 
-    in case changes of
-
-           IncrementWidth ->
-               let newSettings = {settings | setWidth = width + 1}
-               in ({model | settings = newSettings}, Cmd.none)
-
-           DecrementWidth ->
-               let newSettings = {settings | setWidth = width - 1}
-               in ({model | settings = newSettings}, Cmd.none)
-
-           IncrementHeight ->
-               let newSettings = {settings | setHeight = height + 1}
-               in ({model | settings = newSettings}, Cmd.none)
-
-           DecrementHeight ->
-               let newSettings = {settings | setHeight = height - 1}
-               in ({model | settings = newSettings}, Cmd.none)
-
-           UpdateSeed inpText ->
-               let newSettings = {settings | seedInput = inpText}
-               in ({model | settings = newSettings}, Cmd.none)
-
-           OpenSettings ->
-               let newSettings = {settings | isOpen = True}
-               in ({model | settings = newSettings}, Cmd.none)
-
-           CloseSettings ->
-               let newSettings = {settings | isOpen = False}
-               in ({model | settings = newSettings}, Cmd.none)
-
-updateGenerateTableFromSeed : Model -> (Model,Cmd Msg)
-updateGenerateTableFromSeed model =
-    case List.map String.toInt <| String.split "," <| model.settings.seedInput of
-        [Just rowNum, Just colNum,Just seedNum] ->
-            let settings = model.settings
-                newSettings = {settings | seed = seedNum
-                                        , setHeight = rowNum
-                                        , setWidth = colNum
-                              }
-            in (updateTable {model | settings = newSettings}, Cmd.none)
-        _ -> (model,Cmd.none)
                 
 updateKeyPress : Model -> Key -> (Model,Cmd Msg)
 updateKeyPress model key =
     case model.settings.isOpen of
         True ->
             case key of
-                Control "Enter" ->
-                    updateGenerateTableFromSeed model
+  --              Control "Enter" ->
+--                    updateGenerateTableFromSeed model
                 _ -> (model,Cmd.none)
         False -> 
             case key of

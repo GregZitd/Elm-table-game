@@ -5238,7 +5238,7 @@ var $author$project$Main$Model = F5(
 	function (table, settings, currentSelection, numberOfSteps, isMonochrome) {
 		return {currentSelection: currentSelection, isMonochrome: isMonochrome, numberOfSteps: numberOfSteps, settings: settings, table: table};
 	});
-var $author$project$Main$Settings = F5(
+var $author$project$Settings$Settings = F5(
 	function (setWidth, setHeight, seed, seedInput, isOpen) {
 		return {isOpen: isOpen, seed: seed, seedInput: seedInput, setHeight: setHeight, setWidth: setWidth};
 	});
@@ -5400,12 +5400,16 @@ var $author$project$Main$init = function (_v0) {
 		A5(
 			$author$project$Main$Model,
 			$author$project$Main$emptyTable,
-			A5($author$project$Main$Settings, 10, 10, 0, '', false),
+			A5($author$project$Settings$Settings, 10, 10, 0, '', false),
 			A2($author$project$Main$Index, 1, 1),
 			0,
 			false),
 		A2($elm$random$Random$generate, $author$project$Main$GenerateSeedAndTable, $author$project$Main$randInt));
 };
+var $author$project$Main$UpdateSettings = function (a) {
+	return {$: 'UpdateSettings', a: a};
+};
+var $elm$core$Platform$Sub$batch = _Platform_batch;
 var $elm$json$Json$Decode$field = _Json_decodeField;
 var $elm$json$Json$Decode$string = _Json_decodeString;
 var $author$project$Main$Character = function (a) {
@@ -5436,6 +5440,7 @@ var $author$project$Main$keyDecoder = A2(
 	$elm$json$Json$Decode$map,
 	$author$project$Main$tokey,
 	A2($elm$json$Json$Decode$field, 'key', $elm$json$Json$Decode$string));
+var $elm$core$Platform$Sub$map = _Platform_map;
 var $elm$browser$Browser$Events$Document = {$: 'Document'};
 var $elm$browser$Browser$Events$MySub = F3(
 	function (a, b, c) {
@@ -5837,11 +5842,116 @@ var $elm$browser$Browser$Events$on = F3(
 			A3($elm$browser$Browser$Events$MySub, node, name, decoder));
 	});
 var $elm$browser$Browser$Events$onKeyPress = A2($elm$browser$Browser$Events$on, $elm$browser$Browser$Events$Document, 'keypress');
+var $author$project$Settings$Enter = {$: 'Enter'};
+var $author$project$Settings$IgnoreKey = {$: 'IgnoreKey'};
+var $author$project$Settings$KeyPress = function (a) {
+	return {$: 'KeyPress', a: a};
+};
+var $author$project$Settings$isEnter = function (keyValue) {
+	if (keyValue === 'Enter') {
+		return $author$project$Settings$KeyPress($author$project$Settings$Enter);
+	} else {
+		return $author$project$Settings$KeyPress($author$project$Settings$IgnoreKey);
+	}
+};
+var $author$project$Settings$enterDecoder = A2(
+	$elm$json$Json$Decode$map,
+	$author$project$Settings$isEnter,
+	A2($elm$json$Json$Decode$field, 'key', $elm$json$Json$Decode$string));
+var $author$project$Settings$subscriptions = $elm$browser$Browser$Events$onKeyPress($author$project$Settings$enterDecoder);
 var $author$project$Main$subscriptions = function (model) {
-	return $elm$browser$Browser$Events$onKeyPress($author$project$Main$keyDecoder);
+	return $elm$core$Platform$Sub$batch(
+		_List_fromArray(
+			[
+				$elm$browser$Browser$Events$onKeyPress($author$project$Main$keyDecoder),
+				A2($elm$core$Platform$Sub$map, $author$project$Main$UpdateSettings, $author$project$Settings$subscriptions)
+			]));
 };
 var $elm$core$Platform$Cmd$batch = _Platform_batch;
 var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
+var $author$project$Settings$updateGenerateTableFromSeed = function (settings) {
+	var _v0 = A2(
+		$elm$core$List$map,
+		$elm$core$String$toInt,
+		A2($elm$core$String$split, ',', settings.seedInput));
+	if ((((((_v0.b && (_v0.a.$ === 'Just')) && _v0.b.b) && (_v0.b.a.$ === 'Just')) && _v0.b.b.b) && (_v0.b.b.a.$ === 'Just')) && (!_v0.b.b.b.b)) {
+		var rowNum = _v0.a.a;
+		var _v1 = _v0.b;
+		var colNum = _v1.a.a;
+		var _v2 = _v1.b;
+		var seedNum = _v2.a.a;
+		var newSettings = _Utils_update(
+			settings,
+			{seed: seedNum, setHeight: rowNum, setWidth: colNum});
+		return _Utils_Tuple2(newSettings, true);
+	} else {
+		return _Utils_Tuple2(settings, false);
+	}
+};
+var $author$project$Settings$update = F2(
+	function (changes, settings) {
+		var width = settings.setWidth;
+		var height = settings.setHeight;
+		switch (changes.$) {
+			case 'IncrementWidth':
+				return _Utils_Tuple2(
+					_Utils_update(
+						settings,
+						{setWidth: width + 1}),
+					false);
+			case 'DecrementWidth':
+				return _Utils_Tuple2(
+					_Utils_update(
+						settings,
+						{setWidth: width - 1}),
+					false);
+			case 'IncrementHeight':
+				return _Utils_Tuple2(
+					_Utils_update(
+						settings,
+						{setHeight: height + 1}),
+					false);
+			case 'DecrementHeight':
+				return _Utils_Tuple2(
+					_Utils_update(
+						settings,
+						{setHeight: height - 1}),
+					false);
+			case 'UpdateSeed':
+				var inpText = changes.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						settings,
+						{seedInput: inpText}),
+					false);
+			case 'OpenSettings':
+				return _Utils_Tuple2(
+					_Utils_update(
+						settings,
+						{isOpen: true}),
+					false);
+			case 'CloseSettings':
+				return _Utils_Tuple2(
+					_Utils_update(
+						settings,
+						{isOpen: false}),
+					false);
+			case 'ClickedGenerateTableFromSeed':
+				return $author$project$Settings$updateGenerateTableFromSeed(settings);
+			default:
+				var key = changes.a;
+				if (key.$ === 'Enter') {
+					var _v2 = settings.isOpen;
+					if (_v2) {
+						return $author$project$Settings$updateGenerateTableFromSeed(settings);
+					} else {
+						return _Utils_Tuple2(settings, false);
+					}
+				} else {
+					return _Utils_Tuple2(settings, false);
+				}
+		}
+	});
 var $elm$core$List$any = F2(
 	function (isOkay, list) {
 		any:
@@ -6333,6 +6443,41 @@ var $author$project$Main$updateChangeColor = F2(
 			}
 		}
 	});
+var $author$project$Main$Blue = {$: 'Blue'};
+var $author$project$Main$Green = {$: 'Green'};
+var $author$project$Main$Purple = {$: 'Purple'};
+var $author$project$Main$Red = {$: 'Red'};
+var $author$project$Main$Yellow = {$: 'Yellow'};
+var $author$project$Main$updateKeyPress = F2(
+	function (model, key) {
+		var _v0 = model.settings.isOpen;
+		if (_v0) {
+			return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+		} else {
+			_v2$5:
+			while (true) {
+				if (key.$ === 'Character') {
+					switch (key.a.valueOf()) {
+						case '1':
+							return A2($author$project$Main$updateChangeColor, model, $author$project$Main$Red);
+						case '2':
+							return A2($author$project$Main$updateChangeColor, model, $author$project$Main$Blue);
+						case '3':
+							return A2($author$project$Main$updateChangeColor, model, $author$project$Main$Green);
+						case '4':
+							return A2($author$project$Main$updateChangeColor, model, $author$project$Main$Yellow);
+						case '5':
+							return A2($author$project$Main$updateChangeColor, model, $author$project$Main$Purple);
+						default:
+							break _v2$5;
+					}
+				} else {
+					break _v2$5;
+				}
+			}
+			return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+		}
+	});
 var $elm$random$Random$andThen = F2(
 	function (callback, _v0) {
 		var genA = _v0.a;
@@ -6346,11 +6491,6 @@ var $elm$random$Random$andThen = F2(
 				return genB(newSeed);
 			});
 	});
-var $author$project$Main$Blue = {$: 'Blue'};
-var $author$project$Main$Green = {$: 'Green'};
-var $author$project$Main$Purple = {$: 'Purple'};
-var $author$project$Main$Red = {$: 'Red'};
-var $author$project$Main$Yellow = {$: 'Yellow'};
 var $elm$random$Random$addOne = function (value) {
 	return _Utils_Tuple2(1, value);
 };
@@ -6545,137 +6685,6 @@ var $author$project$Main$updateTable = function (model) {
 			table: newTable
 		});
 };
-var $author$project$Main$updateGenerateTableFromSeed = function (model) {
-	var _v0 = A2(
-		$elm$core$List$map,
-		$elm$core$String$toInt,
-		A2($elm$core$String$split, ',', model.settings.seedInput));
-	if ((((((_v0.b && (_v0.a.$ === 'Just')) && _v0.b.b) && (_v0.b.a.$ === 'Just')) && _v0.b.b.b) && (_v0.b.b.a.$ === 'Just')) && (!_v0.b.b.b.b)) {
-		var rowNum = _v0.a.a;
-		var _v1 = _v0.b;
-		var colNum = _v1.a.a;
-		var _v2 = _v1.b;
-		var seedNum = _v2.a.a;
-		var settings = model.settings;
-		var newSettings = _Utils_update(
-			settings,
-			{seed: seedNum, setHeight: rowNum, setWidth: colNum});
-		return _Utils_Tuple2(
-			$author$project$Main$updateTable(
-				_Utils_update(
-					model,
-					{settings: newSettings})),
-			$elm$core$Platform$Cmd$none);
-	} else {
-		return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
-	}
-};
-var $author$project$Main$updateKeyPress = F2(
-	function (model, key) {
-		var _v0 = model.settings.isOpen;
-		if (_v0) {
-			if ((key.$ === 'Control') && (key.a === 'Enter')) {
-				return $author$project$Main$updateGenerateTableFromSeed(model);
-			} else {
-				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
-			}
-		} else {
-			_v2$5:
-			while (true) {
-				if (key.$ === 'Character') {
-					switch (key.a.valueOf()) {
-						case '1':
-							return A2($author$project$Main$updateChangeColor, model, $author$project$Main$Red);
-						case '2':
-							return A2($author$project$Main$updateChangeColor, model, $author$project$Main$Blue);
-						case '3':
-							return A2($author$project$Main$updateChangeColor, model, $author$project$Main$Green);
-						case '4':
-							return A2($author$project$Main$updateChangeColor, model, $author$project$Main$Yellow);
-						case '5':
-							return A2($author$project$Main$updateChangeColor, model, $author$project$Main$Purple);
-						default:
-							break _v2$5;
-					}
-				} else {
-					break _v2$5;
-				}
-			}
-			return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
-		}
-	});
-var $author$project$Main$updateSettings = F2(
-	function (changes, model) {
-		var width = model.settings.setWidth;
-		var settings = model.settings;
-		var height = model.settings.setHeight;
-		switch (changes.$) {
-			case 'IncrementWidth':
-				var newSettings = _Utils_update(
-					settings,
-					{setWidth: width + 1});
-				return _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{settings: newSettings}),
-					$elm$core$Platform$Cmd$none);
-			case 'DecrementWidth':
-				var newSettings = _Utils_update(
-					settings,
-					{setWidth: width - 1});
-				return _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{settings: newSettings}),
-					$elm$core$Platform$Cmd$none);
-			case 'IncrementHeight':
-				var newSettings = _Utils_update(
-					settings,
-					{setHeight: height + 1});
-				return _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{settings: newSettings}),
-					$elm$core$Platform$Cmd$none);
-			case 'DecrementHeight':
-				var newSettings = _Utils_update(
-					settings,
-					{setHeight: height - 1});
-				return _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{settings: newSettings}),
-					$elm$core$Platform$Cmd$none);
-			case 'UpdateSeed':
-				var inpText = changes.a;
-				var newSettings = _Utils_update(
-					settings,
-					{seedInput: inpText});
-				return _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{settings: newSettings}),
-					$elm$core$Platform$Cmd$none);
-			case 'OpenSettings':
-				var newSettings = _Utils_update(
-					settings,
-					{isOpen: true});
-				return _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{settings: newSettings}),
-					$elm$core$Platform$Cmd$none);
-			default:
-				var newSettings = _Utils_update(
-					settings,
-					{isOpen: false});
-				return _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{settings: newSettings}),
-					$elm$core$Platform$Cmd$none);
-		}
-	});
 var $author$project$Main$update = F2(
 	function (msg, model) {
 		switch (msg.$) {
@@ -6695,11 +6704,25 @@ var $author$project$Main$update = F2(
 							model,
 							{settings: newSettings})),
 					$elm$core$Platform$Cmd$none);
-			case 'GenerateTableFromSeed':
-				return $author$project$Main$updateGenerateTableFromSeed(model);
 			case 'UpdateSettings':
 				var changes = msg.a;
-				return A2($author$project$Main$updateSettings, changes, model);
+				var _v1 = A2($author$project$Settings$update, changes, model.settings);
+				var newSettings = _v1.a;
+				var shouldTableUpdate = _v1.b;
+				if (!shouldTableUpdate) {
+					return _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{settings: newSettings}),
+						$elm$core$Platform$Cmd$none);
+				} else {
+					return _Utils_Tuple2(
+						$author$project$Main$updateTable(
+							_Utils_update(
+								model,
+								{settings: newSettings})),
+						$elm$core$Platform$Cmd$none);
+				}
 			case 'NewPosition':
 				var newIndex = msg.a;
 				return _Utils_Tuple2(
@@ -13301,11 +13324,9 @@ var $author$project$Main$viewTable = function (rows) {
 			]),
 		A2($elm$core$List$map, $author$project$Main$viewRow, rows));
 };
-var $author$project$Main$CloseSettings = {$: 'CloseSettings'};
-var $author$project$Main$OpenSettings = {$: 'OpenSettings'};
-var $author$project$Main$UpdateSettings = function (a) {
-	return {$: 'UpdateSettings', a: a};
-};
+var $mdgriffith$elm_ui$Element$map = $mdgriffith$elm_ui$Internal$Model$map;
+var $author$project$Settings$CloseSettings = {$: 'CloseSettings'};
+var $author$project$Settings$OpenSettings = {$: 'OpenSettings'};
 var $mdgriffith$elm_ui$Internal$Model$Below = {$: 'Below'};
 var $mdgriffith$elm_ui$Element$below = function (element) {
 	return A2($mdgriffith$elm_ui$Element$createNearby, $mdgriffith$elm_ui$Internal$Model$Below, element);
@@ -13324,13 +13345,27 @@ var $elm$html$Html$Events$onMouseLeave = function (msg) {
 		$elm$json$Json$Decode$succeed(msg));
 };
 var $mdgriffith$elm_ui$Element$Events$onMouseLeave = A2($elm$core$Basics$composeL, $mdgriffith$elm_ui$Internal$Model$Attr, $elm$html$Html$Events$onMouseLeave);
-var $author$project$Main$GenerateTableFromSeed = {$: 'GenerateTableFromSeed'};
-var $author$project$Main$viewGenerateTableFromSeedButton = A2(
+var $author$project$Settings$ClickedGenerateTableFromSeed = {$: 'ClickedGenerateTableFromSeed'};
+var $author$project$Settings$black = A3($mdgriffith$elm_ui$Element$rgb255, 0, 0, 0);
+var $author$project$Settings$grey = A3($mdgriffith$elm_ui$Element$rgb255, 92, 99, 118);
+var $author$project$Settings$noFocusShadow = $mdgriffith$elm_ui$Element$focused(
+	_List_fromArray(
+		[
+			$mdgriffith$elm_ui$Element$Border$shadow(
+			{
+				blur: 0,
+				color: A3($mdgriffith$elm_ui$Element$rgb255, 139, 0, 139),
+				offset: _Utils_Tuple2(0, 0),
+				size: 0
+			})
+		]));
+var $author$project$Settings$orange = A3($mdgriffith$elm_ui$Element$rgb255, 255, 128, 0);
+var $author$project$Settings$viewGenerateTableFromSeedButton = A2(
 	$mdgriffith$elm_ui$Element$column,
 	_List_fromArray(
 		[
 			$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-			$mdgriffith$elm_ui$Element$Background$color($author$project$Main$grey),
+			$mdgriffith$elm_ui$Element$Background$color($author$project$Settings$grey),
 			$mdgriffith$elm_ui$Element$spacing(5)
 		]),
 	_List_fromArray(
@@ -13344,26 +13379,26 @@ var $author$project$Main$viewGenerateTableFromSeedButton = A2(
 			$mdgriffith$elm_ui$Element$Input$button,
 			_List_fromArray(
 				[
-					$mdgriffith$elm_ui$Element$Background$color($author$project$Main$orange),
+					$mdgriffith$elm_ui$Element$Background$color($author$project$Settings$orange),
 					$mdgriffith$elm_ui$Element$centerX,
 					$mdgriffith$elm_ui$Element$centerY,
 					$mdgriffith$elm_ui$Element$height(
 					$mdgriffith$elm_ui$Element$px(25)),
 					$mdgriffith$elm_ui$Element$width(
 					$mdgriffith$elm_ui$Element$px(120)),
-					$mdgriffith$elm_ui$Element$Font$color($author$project$Main$black),
+					$mdgriffith$elm_ui$Element$Font$color($author$project$Settings$black),
 					$mdgriffith$elm_ui$Element$Font$center,
 					$mdgriffith$elm_ui$Element$Border$rounded(10),
-					$author$project$Main$noFocusShadow
+					$author$project$Settings$noFocusShadow
 				]),
 			{
 				label: $mdgriffith$elm_ui$Element$text('Generate'),
-				onPress: $elm$core$Maybe$Just($author$project$Main$GenerateTableFromSeed)
+				onPress: $elm$core$Maybe$Just($author$project$Settings$ClickedGenerateTableFromSeed)
 			})
 		]));
-var $author$project$Main$DecrementHeight = {$: 'DecrementHeight'};
-var $author$project$Main$IncrementHeight = {$: 'IncrementHeight'};
-var $author$project$Main$counterButton = F2(
+var $author$project$Settings$DecrementHeight = {$: 'DecrementHeight'};
+var $author$project$Settings$IncrementHeight = {$: 'IncrementHeight'};
+var $author$project$Settings$counterButton = F2(
 	function (buttonText, msg) {
 		return A2(
 			$mdgriffith$elm_ui$Element$Input$button,
@@ -13373,18 +13408,18 @@ var $author$project$Main$counterButton = F2(
 					$mdgriffith$elm_ui$Element$px(25)),
 					$mdgriffith$elm_ui$Element$width(
 					$mdgriffith$elm_ui$Element$px(25)),
-					$mdgriffith$elm_ui$Element$Background$color($author$project$Main$orange),
+					$mdgriffith$elm_ui$Element$Background$color($author$project$Settings$orange),
 					$mdgriffith$elm_ui$Element$Border$rounded(10),
 					$mdgriffith$elm_ui$Element$Font$center,
-					$mdgriffith$elm_ui$Element$Font$color($author$project$Main$black),
-					$author$project$Main$noFocusShadow
+					$mdgriffith$elm_ui$Element$Font$color($author$project$Settings$black),
+					$author$project$Settings$noFocusShadow
 				]),
 			{
 				label: $mdgriffith$elm_ui$Element$text(buttonText),
 				onPress: $elm$core$Maybe$Just(msg)
 			});
 	});
-var $author$project$Main$viewHeightCounter = function (val) {
+var $author$project$Settings$viewHeightCounter = function (val) {
 	return A2(
 		$mdgriffith$elm_ui$Element$el,
 		_List_fromArray(
@@ -13393,7 +13428,7 @@ var $author$project$Main$viewHeightCounter = function (val) {
 				$mdgriffith$elm_ui$Element$height(
 				$mdgriffith$elm_ui$Element$px(35)),
 				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-				$mdgriffith$elm_ui$Element$Background$color($author$project$Main$grey)
+				$mdgriffith$elm_ui$Element$Background$color($author$project$Settings$grey)
 			]),
 		A2(
 			$mdgriffith$elm_ui$Element$row,
@@ -13402,19 +13437,13 @@ var $author$project$Main$viewHeightCounter = function (val) {
 			_List_fromArray(
 				[
 					$mdgriffith$elm_ui$Element$text('Height: '),
-					A2(
-					$author$project$Main$counterButton,
-					'-',
-					$author$project$Main$UpdateSettings($author$project$Main$DecrementHeight)),
+					A2($author$project$Settings$counterButton, '-', $author$project$Settings$DecrementHeight),
 					$mdgriffith$elm_ui$Element$text(
 					$elm$core$String$fromInt(val)),
-					A2(
-					$author$project$Main$counterButton,
-					'+',
-					$author$project$Main$UpdateSettings($author$project$Main$IncrementHeight))
+					A2($author$project$Settings$counterButton, '+', $author$project$Settings$IncrementHeight)
 				])));
 };
-var $author$project$Main$UpdateSeed = function (a) {
+var $author$project$Settings$UpdateSeed = function (a) {
 	return {$: 'UpdateSeed', a: a};
 };
 var $mdgriffith$elm_ui$Element$Input$HiddenLabel = function (a) {
@@ -14236,7 +14265,7 @@ var $mdgriffith$elm_ui$Element$Input$text = $mdgriffith$elm_ui$Element$Input$tex
 		spellchecked: false,
 		type_: $mdgriffith$elm_ui$Element$Input$TextInputNode('text')
 	});
-var $author$project$Main$viewSeedInputField = function (settings) {
+var $author$project$Settings$viewSeedInputField = function (settings) {
 	return A2(
 		$mdgriffith$elm_ui$Element$el,
 		_List_fromArray(
@@ -14244,7 +14273,7 @@ var $author$project$Main$viewSeedInputField = function (settings) {
 				$mdgriffith$elm_ui$Element$height(
 				$mdgriffith$elm_ui$Element$px(35)),
 				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-				$mdgriffith$elm_ui$Element$Background$color($author$project$Main$grey),
+				$mdgriffith$elm_ui$Element$Background$color($author$project$Settings$grey),
 				$mdgriffith$elm_ui$Element$Border$roundEach(
 				{bottomLeft: 30, bottomRight: 30, topLeft: 0, topRight: 0})
 			]),
@@ -14259,19 +14288,19 @@ var $author$project$Main$viewSeedInputField = function (settings) {
 					$mdgriffith$elm_ui$Element$padding(5),
 					$mdgriffith$elm_ui$Element$centerX,
 					$mdgriffith$elm_ui$Element$centerY,
-					$mdgriffith$elm_ui$Element$Font$color($author$project$Main$black),
-					$author$project$Main$noFocusShadow
+					$mdgriffith$elm_ui$Element$Font$color($author$project$Settings$black),
+					$author$project$Settings$noFocusShadow
 				]),
 			{
 				label: $mdgriffith$elm_ui$Element$Input$labelHidden(''),
-				onChange: A2($elm$core$Basics$composeL, $author$project$Main$UpdateSettings, $author$project$Main$UpdateSeed),
+				onChange: $author$project$Settings$UpdateSeed,
 				placeholder: $elm$core$Maybe$Nothing,
 				text: settings.seedInput
 			}));
 };
-var $author$project$Main$DecrementWidth = {$: 'DecrementWidth'};
-var $author$project$Main$IncrementWidth = {$: 'IncrementWidth'};
-var $author$project$Main$viewWidthCounter = function (val) {
+var $author$project$Settings$DecrementWidth = {$: 'DecrementWidth'};
+var $author$project$Settings$IncrementWidth = {$: 'IncrementWidth'};
+var $author$project$Settings$viewWidthCounter = function (val) {
 	return A2(
 		$mdgriffith$elm_ui$Element$el,
 		_List_fromArray(
@@ -14279,7 +14308,7 @@ var $author$project$Main$viewWidthCounter = function (val) {
 				$mdgriffith$elm_ui$Element$height(
 				$mdgriffith$elm_ui$Element$px(35)),
 				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-				$mdgriffith$elm_ui$Element$Background$color($author$project$Main$grey)
+				$mdgriffith$elm_ui$Element$Background$color($author$project$Settings$grey)
 			]),
 		A2(
 			$mdgriffith$elm_ui$Element$row,
@@ -14288,19 +14317,13 @@ var $author$project$Main$viewWidthCounter = function (val) {
 			_List_fromArray(
 				[
 					$mdgriffith$elm_ui$Element$text('Width: '),
-					A2(
-					$author$project$Main$counterButton,
-					'-',
-					$author$project$Main$UpdateSettings($author$project$Main$DecrementWidth)),
+					A2($author$project$Settings$counterButton, '-', $author$project$Settings$DecrementWidth),
 					$mdgriffith$elm_ui$Element$text(
 					$elm$core$String$fromInt(val)),
-					A2(
-					$author$project$Main$counterButton,
-					'+',
-					$author$project$Main$UpdateSettings($author$project$Main$IncrementWidth))
+					A2($author$project$Settings$counterButton, '+', $author$project$Settings$IncrementWidth)
 				])));
 };
-var $author$project$Main$viewSettings = function (settings) {
+var $author$project$Settings$view = function (settings) {
 	var menuWidth = $mdgriffith$elm_ui$Element$px(200);
 	var menu = A2(
 		$mdgriffith$elm_ui$Element$column,
@@ -14310,10 +14333,10 @@ var $author$project$Main$viewSettings = function (settings) {
 			]),
 		_List_fromArray(
 			[
-				$author$project$Main$viewWidthCounter(settings.setWidth),
-				$author$project$Main$viewHeightCounter(settings.setHeight),
-				$author$project$Main$viewGenerateTableFromSeedButton,
-				$author$project$Main$viewSeedInputField(settings)
+				$author$project$Settings$viewWidthCounter(settings.setWidth),
+				$author$project$Settings$viewHeightCounter(settings.setHeight),
+				$author$project$Settings$viewGenerateTableFromSeedButton,
+				$author$project$Settings$viewSeedInputField(settings)
 			]));
 	var _v0 = settings.isOpen;
 	if (!_v0) {
@@ -14321,8 +14344,9 @@ var $author$project$Main$viewSettings = function (settings) {
 			$mdgriffith$elm_ui$Element$el,
 			_List_fromArray(
 				[
-					$mdgriffith$elm_ui$Element$Events$onMouseEnter(
-					$author$project$Main$UpdateSettings($author$project$Main$OpenSettings)),
+					$mdgriffith$elm_ui$Element$Events$onMouseEnter($author$project$Settings$OpenSettings),
+					$mdgriffith$elm_ui$Element$Events$onClick($author$project$Settings$OpenSettings),
+					$mdgriffith$elm_ui$Element$pointer,
 					$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$fill),
 					$mdgriffith$elm_ui$Element$width(menuWidth)
 				]),
@@ -14336,8 +14360,9 @@ var $author$project$Main$viewSettings = function (settings) {
 			$mdgriffith$elm_ui$Element$el,
 			_List_fromArray(
 				[
-					$mdgriffith$elm_ui$Element$Events$onMouseLeave(
-					$author$project$Main$UpdateSettings($author$project$Main$CloseSettings)),
+					$mdgriffith$elm_ui$Element$Events$onMouseLeave($author$project$Settings$CloseSettings),
+					$mdgriffith$elm_ui$Element$Events$onClick($author$project$Settings$CloseSettings),
+					$mdgriffith$elm_ui$Element$pointer,
 					$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$fill),
 					$mdgriffith$elm_ui$Element$width(menuWidth),
 					$mdgriffith$elm_ui$Element$below(menu)
@@ -14362,7 +14387,10 @@ var $author$project$Main$viewTopBar = function (settings) {
 			]),
 		_List_fromArray(
 			[
-				$author$project$Main$viewSettings(settings)
+				A2(
+				$mdgriffith$elm_ui$Element$map,
+				$author$project$Main$UpdateSettings,
+				$author$project$Settings$view(settings))
 			]));
 };
 var $author$project$Main$view = function (model) {
