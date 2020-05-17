@@ -125,23 +125,31 @@ view settings =
            False -> 
                el
                    [ Events.onMouseEnter OpenSettings
-                   , Events.onClick OpenSettings
-                   , pointer
                    , height fill
                    , width menuWidth
                    ]
-                   (el [centerY, centerX] (text "Settings"))
+                   (el [ centerY
+                       , centerX
+                       , Events.onClick OpenSettings
+                       , pointer
+                       ]
+                        (text "Settings")
+                   )
            True ->
                el
                    [ Events.onMouseLeave CloseSettings
-                   , Events.onClick CloseSettings
-                   , pointer
                    , height fill
                    , width menuWidth
                    , below menu
                    
                    ]
-                   (el [centerY, centerX] (text "Settings"))
+                   (el [ centerY
+                       , centerX
+                       , Events.onClick CloseSettings
+                       , pointer
+                       ]
+                       (text "Settings")
+                   )
 
 viewGenerateTableFromSeedButton : Element Changes
 viewGenerateTableFromSeedButton =

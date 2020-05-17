@@ -19271,15 +19271,18 @@ var $author$project$Settings$view = function (settings) {
 			_List_fromArray(
 				[
 					$mdgriffith$elm_ui$Element$Events$onMouseEnter($author$project$Settings$OpenSettings),
-					$mdgriffith$elm_ui$Element$Events$onClick($author$project$Settings$OpenSettings),
-					$mdgriffith$elm_ui$Element$pointer,
 					$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$fill),
 					$mdgriffith$elm_ui$Element$width(menuWidth)
 				]),
 			A2(
 				$mdgriffith$elm_ui$Element$el,
 				_List_fromArray(
-					[$mdgriffith$elm_ui$Element$centerY, $mdgriffith$elm_ui$Element$centerX]),
+					[
+						$mdgriffith$elm_ui$Element$centerY,
+						$mdgriffith$elm_ui$Element$centerX,
+						$mdgriffith$elm_ui$Element$Events$onClick($author$project$Settings$OpenSettings),
+						$mdgriffith$elm_ui$Element$pointer
+					]),
 				$mdgriffith$elm_ui$Element$text('Settings')));
 	} else {
 		return A2(
@@ -19287,8 +19290,6 @@ var $author$project$Settings$view = function (settings) {
 			_List_fromArray(
 				[
 					$mdgriffith$elm_ui$Element$Events$onMouseLeave($author$project$Settings$CloseSettings),
-					$mdgriffith$elm_ui$Element$Events$onClick($author$project$Settings$CloseSettings),
-					$mdgriffith$elm_ui$Element$pointer,
 					$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$fill),
 					$mdgriffith$elm_ui$Element$width(menuWidth),
 					$mdgriffith$elm_ui$Element$below(menu)
@@ -19296,7 +19297,12 @@ var $author$project$Settings$view = function (settings) {
 			A2(
 				$mdgriffith$elm_ui$Element$el,
 				_List_fromArray(
-					[$mdgriffith$elm_ui$Element$centerY, $mdgriffith$elm_ui$Element$centerX]),
+					[
+						$mdgriffith$elm_ui$Element$centerY,
+						$mdgriffith$elm_ui$Element$centerX,
+						$mdgriffith$elm_ui$Element$Events$onClick($author$project$Settings$CloseSettings),
+						$mdgriffith$elm_ui$Element$pointer
+					]),
 				$mdgriffith$elm_ui$Element$text('Settings')));
 	}
 };
