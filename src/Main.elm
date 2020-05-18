@@ -254,8 +254,8 @@ viewSeedTip model =
 viewCell : Cell -> Element Msg
 viewCell cell =
     El.el []( Input.button [ Background.color <| colorToRGB cell.color
-                            , El.height <| El.px 35
-                            , El.width <| El.px 35
+                           , El.height <| El.px 35
+                           , El.width <| El.px 35
                            , El.focused [Border.shadow {offset = (0,0)
                                                        , size = 3
                                                        , blur = 0
